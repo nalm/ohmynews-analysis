@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>오마이뉴스 배치 분석</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; background: #f0f2f5; color: #222; font-size: 14px; }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #c62828 0%, #e53935 100%);
+      color: white; padding: 16px 28px;
+      display: flex; align-items: center; gap: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .logo { font-size: 1.4rem; font-weight: 800; }
+    .subtitle { font-size: 0.8rem; opacity: 0.85; margin-top: 2px; }
+
+    /* ── Container ── */
+    .container { max-width: 1320px; margin: 0 auto; padding: 22px 18px; }
+
+    /* ── Search bar ── */
+    .search-bar {
+      background: white; border-radius: 14px; padding: 16px 22px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .search-bar label { font-weight: 600; color: #555; white-space: nowrap; font-size: 0.85rem; }
+    .search-bar input[type=date] {
+      border: 1.5px solid #ddd; border-radius: 8px;
+      padding: 7px 11px; font-size: 0.92rem; outline: none;
+    }
+    .search-bar input[type=date]:focus { border-color: #e53935; }
+    .range-sep { color: #aaa; font-size: 0.85rem; }
+    .btn-analyze {
+      background: #e53935; color: white; border: none;
+      border-radius: 8px; padding: 8px 24px;
+      font-size: 0.92rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-analyze:hover { background: #c62828; }
+    .btn-analyze:disabled { background: #bbb; cursor: not-allowed; }
+    #statusText { color: #888; font-size: 0.8rem; }
+
+    /* ── Loading ── */
+    #loading {
+      display: none; text-align: center; padding: 50px 20px;
+      background: white; border-radius: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07); margin-bottom: 20px;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid #f0f0f0; border-top-color: #e53935;
+      border-radius: 50%; animation: spin 0.75s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    #results { display: none; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex; gap: 0; margin-bottom: 20px;
+      background: white; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    }
+    .tab-btn {
+      flex: 1; padding: 12px 10px; border: none; background: white;
+      font-size: 0.9rem; font-weight: 600; color: #888; cursor: pointer;
+      border-bottom: 3px solid transparent; transition: all 0.15s;
+    }
+    .tab-btn.active { color: #e53935; border-bottom-color: #e53935; background: #fff8f8; }
+    .tab-btn:hover:not(.active) { background: #f9f9f9; color: #555; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Stat cards ── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 800px) { .stats-grid { grid-template-columns: repeat(3, 1fr); } }
+    .stat-card {
+      background: white; border-radius: 12px; padding: 14px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07); text-align: center;
+      border-top: 3px solid #e53935;
+    }
+    .stat-card .val { font-size: 1.9rem; font-weight: 800; color: #e53935; line-height: 1.1; }
+    .stat-card .lbl { font-size: 0.74rem; color: #888; margin-top: 5px; }
+
+    /* ── Card ── */
+    .card {
+      background: white; border-radius: 14px; padding: 20px 22px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.07); margin-bottom: 18px;
+    }
+    .card-title {
+      font-size: 0.95rem; font-weight: 700; color: #222;
+      margin-bottom: 14px; padding-bottom: 10px;
+      border-bottom: 2px solid #f2f2f2;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #e53935; flex-shrink: 0; }
+
+    /* ── Lifecycle table ── */
+    .lc-legend {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      margin-bottom: 14px; font-size: 0.78rem; color: #555;
+    }
+    .lc-legend span { display: flex; align-items: center; gap: 5px; }
+    .lc-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
+
+    .lc-table-wrap { overflow-x: auto; }
+    table.lc-table { border-collapse: collapse; font-size: 0.8rem; width: 100%; }
+    table.lc-table thead th {
+      background: #f7f8fa; padding: 7px 10px;
+      font-weight: 700; color: #555; border-bottom: 2px solid #e8e8e8;
+      white-space: nowrap; text-align: left;
+    }
+    table.lc-table thead th.slot-col {
+      padding: 4px 2px; min-width: 0;
+      font-size: 0.6rem; text-align: center;
+      writing-mode: vertical-lr; transform: rotate(180deg);
+      height: 48px; vertical-align: bottom;
+    }
+    table.lc-table tbody td {
+      padding: 7px 10px; border-bottom: 1px solid #f2f2f2; vertical-align: middle;
+    }
+    table.lc-table tbody td.slot-cell {
+      padding: 0; width: 14px; min-width: 14px; max-width: 14px;
+    }
+    .slot-pip {
+      display: block; width: 100%; height: 28px;
+      cursor: default;
+    }
+    .pip-M0111 { background: #e53935; }
+    .pip-M0113 { background: #ff7043; }
+    .pip-M0112 { background: #fb8c00; }
+    .pip-other { background: #90a4ae; }
+    .pip-none  { background: transparent; }
+
+    table.lc-table td a { color: #1565c0; text-decoration: none; font-weight: 500; }
+    table.lc-table td a:hover { text-decoration: underline; color: #e53935; }
+
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 0.71rem; font-weight: 700; white-space: nowrap;
+    }
+    .badge-oeum  { background: #ffebee; color: #c62828; }
+    .badge-main  { background: #fff3e0; color: #e65100; }
+    .badge-exit  { background: #f3e5f5; color: #6a1b9a; }
+    .badge-etc   { background: #f5f5f5; color: #666; }
+
+    /* ── Change log ── */
+    .change-log { list-style: none; }
+    .change-log li {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px 0; border-bottom: 1px solid #f5f5f5;
+    }
+    .change-log li:last-child { border-bottom: none; }
+    .time-badge {
+      background: #e53935; color: white; border-radius: 6px;
+      padding: 2px 8px; font-size: 0.75rem; font-weight: 700;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .change-info { flex: 1; min-width: 0; }
+    .change-title a { color: #1a1a1a; text-decoration: none; font-size: 0.88rem; }
+    .change-title a:hover { color: #e53935; text-decoration: underline; }
+    .change-author { font-size: 0.75rem; color: #999; margin-top: 2px; }
+    .stay-pill {
+      flex-shrink: 0; font-size: 0.72rem; color: #888; font-weight: 600;
+      background: #f5f5f5; border-radius: 10px; padding: 2px 8px; margin-top: 2px;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .filter-bar input, .filter-bar select {
+      border: 1.5px solid #ddd; border-radius: 8px;
+      padding: 6px 10px; font-size: 0.83rem; outline: none;
+    }
+    .filter-bar input { flex: 1; min-width: 180px; }
+    .filter-bar input:focus, .filter-bar select:focus { border-color: #e53935; }
+
+    /* ── Data table ── */
+    .table-wrap { overflow-x: auto; }
+    table.data-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    table.data-table thead th {
+      background: #f7f8fa; padding: 8px 10px;
+      text-align: left; font-weight: 700; color: #555;
+      border-bottom: 2px solid #e8e8e8; white-space: nowrap;
+    }
+    table.data-table tbody td { padding: 7px 10px; border-bottom: 1px solid #f2f2f2; }
+    table.data-table tbody tr:hover { background: #fafafa; }
+    table.data-table td a { color: #1565c0; text-decoration: none; }
+    table.data-table td a:hover { text-decoration: underline; }
+
+    /* ── Pagination ── */
+    .pagination { display: flex; gap: 5px; margin-top: 12px; justify-content: center; flex-wrap: wrap; }
+    .pagination button {
+      border: 1.5px solid #ddd; background: white;
+      border-radius: 7px; padding: 4px 10px; cursor: pointer; font-size: 0.78rem;
+    }
+    .pagination button.active { background: #e53935; color: white; border-color: #e53935; font-weight: 700; }
+    .pagination button:hover:not(.active) { background: #f5f5f5; }
+
+    .empty { text-align: center; padding: 30px; color: #aaa; font-size: 0.88rem; }
+    .info-text { font-size: 0.76rem; color: #999; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">오마이뉴스 배치 분석</div>
+    <div class="subtitle">TOP History · 오름 영역 라이프사이클 분석</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Search -->
+  <div class="search-bar">
+    <label>분석 기간</label>
+    <input type="date" id="dateFrom">
+    <span class="range-sep">~</span>
+    <input type="date" id="dateTo">
+    <button class="btn-analyze" id="analyzeBtn" onclick="startAnalysis()">분석 시작</button>
+    <span id="statusText"></span>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <p id="loadingText" style="color:#666;font-size:0.88rem;">데이터 수집 중…</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <!-- Stat cards -->
+    <div class="stats-grid">
+      <div class="stat-card"><div class="val" id="sTimeslots">–</div><div class="lbl">수집 시간대</div></div>
+      <div class="stat-card"><div class="val" id="sOeumArts">–</div><div class="lbl">오름 등장 기사</div></div>
+      <div class="stat-card"><div class="val" id="sAvgDur">–</div><div class="lbl">평균 오름 체류</div></div>
+      <div class="stat-card"><div class="val" id="sDemoted">–</div><div class="lbl">주요기사로 강등</div></div>
+      <div class="stat-card"><div class="val" id="sExited">–</div><div class="lbl">바로 퇴장</div></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('lifecycle', this)">라이프사이클 리포트</button>
+      <button class="tab-btn" onclick="switchTab('oeum-log', this)">오름 교체 이력</button>
+      <button class="tab-btn" onclick="switchTab('charts', this)">배치 현황 차트</button>
+      <button class="tab-btn" onclick="switchTab('articles', this)">전체 기사 목록</button>
+    </div>
+
+    <!-- ① 라이프사이클 리포트 -->
+    <div class="tab-panel active" id="tab-lifecycle">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>오름 기사 라이프사이클</div>
+        <div class="lc-legend">
+          <span><i style="background:#e53935"></i>오름(메인) M0111</span>
+          <span><i style="background:#ff7043"></i>오름(서브) M0113</span>
+          <span><i style="background:#fb8c00"></i>주요기사 M0112</span>
+          <span><i style="background:#90a4ae"></i>기타 섹션</span>
+          <span><i style="background:#f2f2f2;border:1px solid #ddd"></i>없음</span>
+        </div>
+        <div class="lc-table-wrap">
+          <table class="lc-table" id="lcTable">
+            <thead id="lcHead"></thead>
+            <tbody id="lcBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② 오름 교체 이력 -->
+    <div class="tab-panel" id="tab-oeum-log">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>오름(메인) 교체 이력</div>
+        <ul class="change-log" id="changeLog"></ul>
+      </div>
+    </div>
+
+    <!-- ③ 배치 현황 차트 -->
+    <div class="tab-panel" id="tab-charts">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>오름 체류 시간 Top 15</div>
+        <canvas id="durationChart"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>시간대별 섹션별 기사 수</div>
+        <canvas id="sectionChart"></canvas>
+      </div>
+    </div>
+
+    <!-- ④ 전체 기사 목록 -->
+    <div class="tab-panel" id="tab-articles">
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>전체 기사 목록</div>
+        <div class="filter-bar">
+          <input type="text" id="searchInput" placeholder="제목·기자명 검색…" oninput="filterTable()">
+          <select id="timeFilter" onchange="filterTable()">
+            <option value="">전체 시간대</option>
+          </select>
+          <select id="sectionFilter" onchange="filterTable()">
+            <option value="">전체 섹션</option>
+            <option value="oeum">오름만</option>
+            <option value="M0112">주요기사만</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>시간</th><th>순위</th><th>제목</th><th>기자</th><th>섹션</th>
+            </tr></thead>
+            <tbody id="tableBody"></tbody>
+          </table>
+        </div>
+        <div class="info-text" id="tableInfo"></div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+  </div><!-- /results -->
+</div>
+
+<script>
+// ── 색상 팔레트 ──────────────────────────────────────────────
+const COLORS = [
+  '#e53935','#8e24aa','#1e88e5','#43a047','#fb8c00',
+  '#00897b','#d81b60','#3949ab','#00acc1','#7cb342',
+  '#f4511e','#6d4c41','#546e7a','#5e35b1','#039be5'
+];
+const SEC_COLORS = {
+  '오름(메인)': '#e53935', '오름(서브)': '#ff7043',
+  '주요기사': '#fb8c00', '지역뉴스': '#1e88e5',
+  '사는이야기': '#8e24aa',
+};
+const PIP_CLASS = {
+  M0111: 'pip-M0111', M0112: 'pip-M0112', M0113: 'pip-M0113',
+};
+
+// ── 상태 ──────────────────────────────────────────────────────
+let allArticles = [], filteredArticles = [], lifecycleData = [];
+let allTimeslots = [], slotLabels = {};
+let currentPage = 1;
+const PAGE_SIZE = 50;
+let chartDur = null, chartSec = null;
+
+// 기본 날짜: 오늘 기준 3일
+(function () {
+  const today = new Date();
+  const fmt = d => d.toISOString().split('T')[0];
+  const threeDaysAgo = new Date(today); threeDaysAgo.setDate(today.getDate() - 2);
+  document.getElementById('dateTo').value   = fmt(today);
+  document.getElementById('dateFrom').value = fmt(threeDaysAgo);
+})();
+
+// ── 탭 전환 ──────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+// ── 분석 시작 ─────────────────────────────────────────────────
+async function startAnalysis() {
+  const from = document.getElementById('dateFrom').value;
+  const to   = document.getElementById('dateTo').value;
+  if (!from || !to) { alert('날짜를 선택해주세요.'); return; }
+
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('statusText').textContent = '';
+
+  const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+  document.getElementById('loadingText').textContent =
+    `${days}일치 데이터 수집 중… (약 ${days <= 1 ? '5~10' : days * 3 + '~' + days * 6}초)`;
+
+  try {
+    const t0 = Date.now();
+    const resp = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({date_from: from, date_to: to}),
+    });
+    const data = await resp.json();
+    if (data.error) { alert('오류: ' + data.error); return; }
+
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    document.getElementById('statusText').textContent = `완료 (${elapsed}초)`;
+    renderAll(data);
+  } catch (e) {
+    alert('네트워크 오류: ' + e.message);
+  } finally {
+    document.getElementById('analyzeBtn').disabled = false;
+    document.getElementById('loading').style.display = 'none';
+  }
+}
+
+// ── 전체 렌더 ─────────────────────────────────────────────────
+function renderAll(data) {
+  allArticles    = data.articles;
+  lifecycleData  = data.lifecycle;
+  allTimeslots   = data.timeslots;
+  slotLabels     = data.slot_labels;
+
+  renderStats();
+  renderLifecycle();
+  renderChangeLog();
+  renderDurationChart();
+  renderSectionChart();
+  populateTimeFilter();
+  filterTable();
+
+  document.getElementById('results').style.display = 'block';
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+// ── 통계 카드 ─────────────────────────────────────────────────
+function renderStats() {
+  const lc = lifecycleData;
+  const totalDur = lc.reduce((s, a) => s + a.oeum_duration, 0);
+  const avg = lc.length ? (totalDur / lc.length).toFixed(1) : 0;
+  const demoted = lc.filter(a => a.after_oeum === '주요기사').length;
+  const exited  = lc.filter(a => a.after_oeum === '퇴장').length;
+
+  document.getElementById('sTimeslots').textContent = allTimeslots.length;
+  document.getElementById('sOeumArts').textContent  = lc.length;
+  document.getElementById('sAvgDur').textContent    = avg;
+  document.getElementById('sDemoted').textContent   = demoted;
+  document.getElementById('sExited').textContent    = exited;
+}
+
+// ── 라이프사이클 테이블 ────────────────────────────────────────
+function renderLifecycle() {
+  const thead = document.getElementById('lcHead');
+  const tbody = document.getElementById('lcBody');
+
+  // 헤더 - 고정 컬럼 + 시간대 컬럼
+  const slotCount = allTimeslots.length;
+  const cellW = Math.max(6, Math.min(18, Math.floor(900 / slotCount)));
+
+  let headerHtml = `<tr>
+    <th style="min-width:200px">기사 제목</th>
+    <th style="min-width:60px">기자</th>
+    <th style="min-width:90px">오름 진입</th>
+    <th style="min-width:60px">체류</th>
+    <th style="min-width:80px">이후 행방</th>`;
+
+  for (const t of allTimeslots) {
+    const lbl = slotLabels[t] || t;
+    headerHtml += `<th class="slot-col" title="${t}" style="min-width:${cellW}px;width:${cellW}px">${lbl}</th>`;
+  }
+  headerHtml += '</tr>';
+  thead.innerHTML = headerHtml;
+
+  // 시간 인덱스 맵
+  const timeIdx = Object.fromEntries(allTimeslots.map((t, i) => [t, i]));
+
+  // 행
+  let bodyHtml = '';
+  for (const art of lifecycleData) {
+    // 시간대별 상태 맵
+    const stageMap = Object.fromEntries(art.stages.map(s => [s.time, s]));
+
+    // 이후 행방 배지
+    const afterClass = art.after_oeum === '퇴장' ? 'badge-exit'
+                     : art.after_oeum === '주요기사' ? 'badge-main'
+                     : art.after_oeum.includes('오름') ? 'badge-oeum'
+                     : 'badge-etc';
+
+    const title = (art.title || art.cntn_cd).substring(0, 32);
+    const firstLabel = slotLabels[art.first_oeum] || art.first_oeum;
+
+    bodyHtml += `<tr>
+      <td><a href="${art.url}" target="_blank">${title}</a></td>
+      <td style="white-space:nowrap">${art.author || '–'}</td>
+      <td style="white-space:nowrap;color:#666">${firstLabel}</td>
+      <td style="text-align:center"><b>${art.oeum_duration}</b>개</td>
+      <td><span class="badge ${afterClass}">${art.after_oeum}</span></td>`;
+
+    for (const t of allTimeslots) {
+      const s = stageMap[t];
+      let cls = 'pip-none';
+      let tip = '없음';
+      if (s) {
+        cls = PIP_CLASS[s.cmpt_cd] || 'pip-other';
+        tip = `${slotLabels[t]} ${s.state} (순위:${s.rank})`;
+      }
+      bodyHtml += `<td class="slot-cell"><span class="slot-pip ${cls}" title="${tip}"></span></td>`;
+    }
+    bodyHtml += '</tr>';
+  }
+
+  tbody.innerHTML = bodyHtml || `<tr><td colspan="100" class="empty">오름 기사 없음</td></tr>`;
+}
+
+// ── 오름(메인) 교체 이력 ──────────────────────────────────────
+function renderChangeLog() {
+  const log = document.getElementById('changeLog');
+  log.innerHTML = '';
+
+  // 기사별 오름 등장 횟수 미리 계산
+  const stayCount = {};
+  for (const art of lifecycleData) {
+    stayCount[art.cntn_cd] = art.oeum_duration;
+  }
+
+  let prev = null;
+  for (const t of allTimeslots) {
+    const top = allArticles.find(a => a.time === t && a.cmpt_cd === 'M0111');
+    if (top && top.cntn_cd !== prev) {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="time-badge">${slotLabels[t] || t}</span>
+        <div class="change-info">
+          <div class="change-title">
+            <a href="${top.url}" target="_blank">${top.title || top.cntn_cd}</a>
+          </div>
+          <div class="change-author">${top.author || ''}</div>
+        </div>
+        <span class="stay-pill">${stayCount[top.cntn_cd] || '?'}개 시간대</span>`;
+      log.appendChild(li);
+      prev = top.cntn_cd;
+    }
+  }
+  if (!log.children.length) log.innerHTML = '<li class="empty">데이터 없음</li>';
+}
+
+// ── 체류 시간 차트 ─────────────────────────────────────────────
+function renderDurationChart() {
+  const top15 = [...lifecycleData]
+    .sort((a, b) => b.oeum_duration - a.oeum_duration)
+    .slice(0, 15)
+    .reverse();
+
+  const timeIdx = Object.fromEntries(allTimeslots.map((t, i) => [t, i]));
+
+  const labels  = top15.map(a => {
+    const t = (a.title || '').substring(0, 24);
+    return a.author ? `${t} (${a.author})` : t;
+  });
+  const floatData = top15.map(a => {
+    const si = timeIdx[a.first_oeum] ?? 0;
+    const ei = (timeIdx[a.last_oeum] ?? si) + 1;
+    return [si, ei];
+  });
+
+  if (chartDur) chartDur.destroy();
+  const ctx = document.getElementById('durationChart').getContext('2d');
+  chartDur = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: floatData,
+        backgroundColor: top15.map((_, i) => COLORS[i % COLORS.length] + 'bb'),
+        borderColor:     top15.map((_, i) => COLORS[i % COLORS.length]),
+        borderWidth: 1, borderRadius: 4, barThickness: 16,
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => top15[top15.length - 1 - items[0].dataIndex]?.title || '',
+            label: item => {
+              const [s, e] = item.raw;
+              return ` ${slotLabels[allTimeslots[s]] || ''} ~ ${slotLabels[allTimeslots[e-1]] || ''}  (${e-s}개 시간대)`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { min: 0, max: allTimeslots.length,
+             ticks: { callback: v => slotLabels[allTimeslots[v]] ?? '', stepSize: 1 },
+             title: { display: true, text: '시간대' } },
+        y: { ticks: { font: { size: 10 } } }
+      },
+      onClick: (_, els) => {
+        if (!els.length) return;
+        const art = top15[top15.length - 1 - els[0].dataIndex];
+        if (art?.url) window.open(art.url, '_blank');
+      }
+    }
+  });
+}
+
+// ── 섹션 분포 차트 ─────────────────────────────────────────────
+function renderSectionChart() {
+  const targets = ['오름(메인)', '오름(서브)', '주요기사', '지역뉴스', '사는이야기'];
+  const secByTime = {};
+  for (const t of allTimeslots) {
+    secByTime[t] = {};
+    targets.forEach(s => secByTime[t][s] = 0);
+  }
+  for (const a of allArticles) {
+    if (secByTime[a.time] && targets.includes(a.section)) secByTime[a.time][a.section]++;
+  }
+
+  const tColors = ['#e53935','#ff7043','#fb8c00','#1e88e5','#8e24aa'];
+  const datasets = targets.map((sec, i) => ({
+    label: sec,
+    data: allTimeslots.map(t => secByTime[t][sec] || 0),
+    backgroundColor: tColors[i] + 'aa',
+    borderColor: tColors[i],
+    borderWidth: 1, borderRadius: 3,
+  }));
+
+  if (chartSec) chartSec.destroy();
+  const ctx = document.getElementById('sectionChart').getContext('2d');
+  chartSec = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: allTimeslots.map(t => slotLabels[t] || t), datasets },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, padding: 14 } } },
+      scales: {
+        x: { ticks: { maxRotation: 45, font: { size: 9 } }, title: { display: true, text: '시간대' } },
+        y: { title: { display: true, text: '기사 수' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── 전체 기사 테이블 ──────────────────────────────────────────
+function populateTimeFilter() {
+  const sel = document.getElementById('timeFilter');
+  sel.innerHTML = '<option value="">전체 시간대</option>';
+  allTimeslots.forEach(t => {
+    sel.innerHTML += `<option value="${t}">${slotLabels[t] || t}</option>`;
+  });
+}
+
+function filterTable() {
+  const q  = document.getElementById('searchInput').value.toLowerCase();
+  const tF = document.getElementById('timeFilter').value;
+  const sF = document.getElementById('sectionFilter').value;
+
+  filteredArticles = allArticles.filter(a => {
+    if (q  && !(a.title||'').toLowerCase().includes(q) && !(a.author||'').toLowerCase().includes(q)) return false;
+    if (tF && a.time !== tF) return false;
+    if (sF === 'oeum'  && !a.is_oeum) return false;
+    if (sF === 'M0112' && a.cmpt_cd !== 'M0112') return false;
+    return true;
+  });
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page  = filteredArticles.slice(start, start + PAGE_SIZE);
+
+  if (!page.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty">결과 없음</td></tr>`;
+    document.getElementById('tableInfo').textContent = '';
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = page.map(a => {
+    const bc = a.cmpt_cd === 'M0111' ? 'badge-oeum'
+             : a.cmpt_cd === 'M0113' ? 'badge-oeum'
+             : a.cmpt_cd === 'M0112' ? 'badge-main' : 'badge-etc';
+    return `<tr>
+      <td style="white-space:nowrap">${slotLabels[a.time] || a.time}</td>
+      <td style="text-align:center;color:#999">${a.rank}</td>
+      <td><a href="${a.url}" target="_blank">${a.title || a.cntn_cd}</a></td>
+      <td style="white-space:nowrap">${a.author || '–'}</td>
+      <td><span class="badge ${bc}">${a.section}</span></td>
+    </tr>`;
+  }).join('');
+
+  const total = filteredArticles.length;
+  document.getElementById('tableInfo').textContent =
+    `${total.toLocaleString()}건 중 ${start+1}–${Math.min(start+PAGE_SIZE, total)}건`;
+
+  // 페이지네이션
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const pag = document.getElementById('pagination');
+  pag.innerHTML = '';
+  if (totalPages <= 1) return;
+  for (let i = 1; i <= totalPages; i++) {
+    if (i !== 1 && i !== totalPages && Math.abs(i - currentPage) > 2) {
+      if (pag.lastChild?.textContent !== '…') { const s = document.createElement('button'); s.textContent = '…'; s.disabled = true; s.style.border = 'none'; pag.appendChild(s); }
+      continue;
+    }
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    if (i === currentPage) btn.classList.add('active');
+    else btn.onclick = () => { currentPage = i; renderTable(); };
+    pag.appendChild(btn);
+  }
+}
+</script>
+</body>
+</html>
