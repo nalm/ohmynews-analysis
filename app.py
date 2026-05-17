@@ -5,6 +5,7 @@
 
 import re
 from datetime import datetime, timedelta
+from html import unescape
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,6 +18,7 @@ BASE_URL    = "https://www.ohmynews.com/NWS_Web/lastmainarticle/viewall.aspx?ID=
 ARTICLE_URL = "https://www.ohmynews.com/NWS_Web/View/at_pg.aspx?CNTN_CD="
 
 SECTION_LABELS = {
+    'T0016': 'Top 기사',     # 최상단 5개 슬롯 (Top_1 ~ Top_5)
     'M0111': '오름(메인)',   # 좌측 대형 2개
     'M0112': '주요기사',
     'M0113': '오름(서브)',   # 우측 소형 4개
@@ -28,7 +30,8 @@ SECTION_LABELS = {
     'M0151': 'SNS공유', 'M0152': '기타6', 'M0153': '기타7',
 }
 
-OEUM_SECTIONS = {'M0111', 'M0113'}   # 오름 영역
+TOP_SECTIONS  = {'T0016'}              # Top 기사 (라이프사이클 추적 대상)
+OEUM_SECTIONS = {'M0111', 'M0113'}     # 오름 (Top 이후 강등될 수 있는 다음 영역)
 HOURS = [3, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
 
 
@@ -44,26 +47,51 @@ def fetch_html(url):
 
 
 def extract_articles(html):
+    """단일 시간대 HTML에서 (T0016 + M0xxx) 기사를 모두 추출"""
     seen = {}
-    for m in re.finditer(r'CNTN_CD=(A\d+)[^"\']*CMPT_CD=(M\d+)', html):
+    # T0016과 M0xxx 모두 캡처
+    for m in re.finditer(r'CNTN_CD=(A\d+)[^"\']*CMPT_CD=([MT]\d+)', html):
         cntn, cmpt = m.group(1), m.group(2)
         if cntn not in seen:
             seen[cntn] = {'cntn_cd': cntn, 'cmpt_cd': cmpt, 'rank': len(seen) + 1}
 
+    # Top_N 위치 추출 (T0016 기사용) — onclick 내부에 작은따옴표가 있어
+    # [^>] 만 사용 (a 태그 닫는 > 전까지)
+    top_pos = {}
+    for m in re.finditer(
+        r'CNTN_CD=(A\d+)[^>]*CMPT_CD=T0016[^>]*Top_(\d+)',
+        html
+    ):
+        cntn, pos = m.group(1), int(m.group(2))
+        if cntn not in top_pos:
+            top_pos[cntn] = pos
+
     titles = {}
-    # M0111: class='p_tit' 링크에 제목
-    for m in re.finditer(r"CNTN_CD=(A\d+)[^'\"]*CMPT_CD=M0111[^'\"]*['\"]?\s*class=['\"]p_tit['\"][^>]*>([^<]{5,100})</a>", html):
+    # T0016: <img alt="..."> 속성에 제목 (HTML 엔티티 디코드 필요)
+    for m in re.finditer(
+        r'CNTN_CD=(A\d+)[^>]*CMPT_CD=T0016[^>]*>.{0,500}?<img[^>]*alt=[\'"]([^\'"]+)[\'"]',
+        html, re.DOTALL
+    ):
+        cntn = m.group(1)
+        title = unescape(m.group(2)).strip()
+        if cntn not in titles and title and title != '이미지기사':
+            titles[cntn] = title
+    # M0111: class='p_tit'
+    for m in re.finditer(
+        r"CNTN_CD=(A\d+)[^'\"]*CMPT_CD=M0111[^'\"]*['\"]?\s*class=['\"]p_tit['\"][^>]*>([^<]{5,100})</a>",
+        html
+    ):
         cntn, title = m.group(1), m.group(2).strip()
         if cntn not in titles:
             titles[cntn] = title
-    # M0113: <strong> 태그에 제목
+    # M0113: <strong>
     for m in re.finditer(r'CNTN_CD=(A\d+)[^>]*CMPT_CD=M0113[^>]*>.*?<strong>(.*?)</strong>', html, re.DOTALL):
         cntn = m.group(1)
         title = re.sub(r'<[^>]+>', ' ', m.group(2)).strip()
         title = re.sub(r'\s+', ' ', title)
         if cntn not in titles and title:
             titles[cntn] = title
-    # M0112 이하: <a> 태그 텍스트
+    # 그 외: <a> 텍스트
     for m in re.finditer(r'CNTN_CD=(A\d+)[^>]*>([^<]{5,80})</a>', html):
         cntn, title = m.group(1), m.group(2).strip()
         if cntn not in titles and not title.startswith('http'):
@@ -78,21 +106,23 @@ def extract_articles(html):
     result = []
     for a in seen.values():
         cntn = a['cntn_cd']
+        cmpt = a['cmpt_cd']
         result.append({
             'cntn_cd': cntn,
-            'cmpt_cd': a['cmpt_cd'],
-            'rank': a['rank'],
-            'section': SECTION_LABELS.get(a['cmpt_cd'], a['cmpt_cd']),
-            'is_oeum': a['cmpt_cd'] in OEUM_SECTIONS,
-            'title': titles.get(cntn, ''),
-            'author': authors.get(cntn, ''),
-            'url': ARTICLE_URL + cntn,
+            'cmpt_cd': cmpt,
+            'rank':    a['rank'],
+            'section': SECTION_LABELS.get(cmpt, cmpt),
+            'is_top':  cmpt in TOP_SECTIONS,
+            'is_oeum': cmpt in OEUM_SECTIONS,
+            'top_pos': top_pos.get(cntn),       # Top_1~Top_5 (T0016만)
+            'title':   titles.get(cntn, ''),
+            'author':  authors.get(cntn, ''),
+            'url':     ARTICLE_URL + cntn,
         })
     return result
 
 
 def fetch_slot(date_str, h):
-    """단일 시간대 수집 → (time_key, articles) or (None, None)"""
     slot_id = f"{date_str}{h:02d}00"
     html = fetch_html(BASE_URL + slot_id)
     if html and len(re.findall(r'CNTN_CD=A\d+', html)) > 10:
@@ -102,7 +132,6 @@ def fetch_slot(date_str, h):
 
 
 def collect_range(date_from_str, date_to_str):
-    """날짜 범위 전체 병렬 수집"""
     d_from = datetime.strptime(date_from_str, '%Y%m%d')
     d_to   = datetime.strptime(date_to_str,   '%Y%m%d')
 
@@ -131,33 +160,28 @@ def collect_range(date_from_str, date_to_str):
     return timeslots, articles
 
 
-# ── 라이프사이클 분석 ───────────────────────────────────────────────
+# ── Top 기사 라이프사이클 ───────────────────────────────────────────
 
 def compute_lifecycle(articles, timeslots):
-    """오름 영역 기사별 라이프사이클 계산"""
+    """T0016(Top 기사)에 한 번이라도 등장한 기사들의 라이프사이클"""
     time_idx = {t: i for i, t in enumerate(timeslots)}
 
-    # 기사별 메타 + 시간대별 상태 수집
-    meta     = {}
-    by_time  = defaultdict(dict)   # {cntn_cd: {time_key: article_row}}
-
+    meta    = {}
+    by_time = defaultdict(dict)
     for a in articles:
         cntn = a['cntn_cd']
         by_time[cntn][a['time']] = a
         if cntn not in meta or (not meta[cntn]['title'] and a['title']):
             meta[cntn] = {'title': a['title'], 'author': a['author'], 'url': a['url']}
 
-    # 오름에 한 번이라도 등장한 기사만
-    oeum_cntns = {cntn for cntn, tm in by_time.items()
-                  if any(r['cmpt_cd'] in OEUM_SECTIONS for r in tm.values())}
-
-    STATE_ORDER = {'오름(메인)': 0, '오름(서브)': 1, '주요기사': 2}
+    # Top 기사에 한 번이라도 등장한 기사만
+    top_cntns = {cntn for cntn, tm in by_time.items()
+                 if any(r['is_top'] for r in tm.values())}
 
     result = []
-    for cntn in oeum_cntns:
+    for cntn in top_cntns:
         tm = by_time[cntn]
 
-        # 등장한 전체 시간대의 상태 시퀀스
         stages = []
         for t in timeslots:
             if t in tm:
@@ -166,46 +190,62 @@ def compute_lifecycle(articles, timeslots):
                     'time':    t,
                     'state':   r['section'],
                     'cmpt_cd': r['cmpt_cd'],
+                    'is_top':  r['is_top'],
                     'is_oeum': r['is_oeum'],
+                    'top_pos': r['top_pos'],
                     'rank':    r['rank'],
                 })
 
-        oeum_stages = [s for s in stages if s['is_oeum']]
-        if not oeum_stages:
+        top_stages = [s for s in stages if s['is_top']]
+        if not top_stages:
             continue
 
-        first_oeum = oeum_stages[0]['time']
-        last_oeum  = oeum_stages[-1]['time']
+        first_top = top_stages[0]['time']
+        last_top  = top_stages[-1]['time']
 
-        # 오름 이후 행방
-        last_idx   = time_idx.get(last_oeum, -1)
-        after_oeum = '퇴장'
+        # Top 이후 행방 (Top 마지막 다음 시간대의 섹션)
+        last_idx  = time_idx.get(last_top, -1)
+        after_top = '퇴장'
         if last_idx >= 0:
             for t in timeslots[last_idx + 1:]:
                 if t in tm:
-                    after_oeum = tm[t]['section']
+                    after_top = tm[t]['section']
                     break
 
-        # 오름 진입 전 이력 (오름 이전에 다른 섹션에 있었나)
-        first_idx     = time_idx.get(first_oeum, 0)
-        pre_oeum_sections = list({tm[t]['section'] for t in timeslots[:first_idx] if t in tm})
+        # Top 진입 전 이력
+        first_idx = time_idx.get(first_top, 0)
+        pre_top_sections = list({tm[t]['section'] for t in timeslots[:first_idx] if t in tm})
+
+        # Top 내 최고 위치 (Top_1이 가장 좋음)
+        top_positions = [s['top_pos'] for s in top_stages if s['top_pos']]
+        best_top_pos  = min(top_positions) if top_positions else None
+
+        # 강등 / 퇴장 분류
+        if after_top == '퇴장':
+            outcome = '퇴장'
+        elif after_top in ('오름(메인)', '오름(서브)'):
+            outcome = '오름으로'
+        elif after_top == '주요기사':
+            outcome = '주요기사로'
+        else:
+            outcome = '기타섹션'
 
         result.append({
-            'cntn_cd':          cntn,
-            'title':            meta[cntn]['title'],
-            'author':           meta[cntn]['author'],
-            'url':              meta[cntn]['url'],
-            'first_oeum':       first_oeum,
-            'last_oeum':        last_oeum,
-            'oeum_duration':    len(oeum_stages),
-            'after_oeum':       after_oeum,
-            'was_m0111':        any(s['cmpt_cd'] == 'M0111' for s in oeum_stages),
-            'pre_oeum':         pre_oeum_sections,
-            'stages':           stages,
+            'cntn_cd':       cntn,
+            'title':         meta[cntn]['title'],
+            'author':        meta[cntn]['author'],
+            'url':           meta[cntn]['url'],
+            'first_top':     first_top,
+            'last_top':      last_top,
+            'top_duration':  len(top_stages),
+            'after_top':     after_top,
+            'outcome':       outcome,
+            'best_top_pos':  best_top_pos,
+            'pre_top':       pre_top_sections,
+            'stages':        stages,
         })
 
-    # 오름 첫 진입 순서로 정렬
-    result.sort(key=lambda x: time_idx.get(x['first_oeum'], 9999))
+    result.sort(key=lambda x: time_idx.get(x['first_top'], 9999))
     return result
 
 
@@ -229,24 +269,21 @@ def analyze():
     if date_from > date_to:
         date_from, date_to = date_to, date_from
 
-    # 최대 14일 제한
     d_from = datetime.strptime(date_from, '%Y%m%d')
     d_to   = datetime.strptime(date_to,   '%Y%m%d')
     if (d_to - d_from).days > 13:
         return jsonify({'error': '최대 14일 범위까지 분석 가능합니다'}), 400
 
     timeslots, articles = collect_range(date_from, date_to)
-
     if not timeslots:
         return jsonify({'error': '해당 기간의 데이터가 없습니다'}), 404
 
     lifecycle = compute_lifecycle(articles, timeslots)
 
-    # 타임슬롯 표시용 레이블 (단일일 → "HH:00", 복수일 → "MM/DD HH:00")
     multi_day = date_from != date_to
     slot_labels = {}
     for t in timeslots:
-        parts = t.split(' ')  # "2026-05-11 07:00"
+        parts = t.split(' ')
         slot_labels[t] = f"{parts[0][5:]} {parts[1]}" if multi_day else parts[1]
 
     return jsonify({

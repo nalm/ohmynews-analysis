@@ -136,6 +136,7 @@
       display: block; width: 100%; height: 28px;
       cursor: default;
     }
+    .pip-T0016 { background: #c62828; }
     .pip-M0111 { background: #e53935; }
     .pip-M0113 { background: #ff7043; }
     .pip-M0112 { background: #fb8c00; }
@@ -149,6 +150,7 @@
       display: inline-block; padding: 2px 8px; border-radius: 10px;
       font-size: 0.71rem; font-weight: 700; white-space: nowrap;
     }
+    .badge-top   { background: #fce4ec; color: #880e4f; }
     .badge-oeum  { background: #ffebee; color: #c62828; }
     .badge-main  { background: #fff3e0; color: #e65100; }
     .badge-exit  { background: #f3e5f5; color: #6a1b9a; }
@@ -243,16 +245,16 @@
     <!-- Stat cards -->
     <div class="stats-grid">
       <div class="stat-card"><div class="val" id="sTimeslots">–</div><div class="lbl">수집 시간대</div></div>
-      <div class="stat-card"><div class="val" id="sOeumArts">–</div><div class="lbl">오름 등장 기사</div></div>
-      <div class="stat-card"><div class="val" id="sAvgDur">–</div><div class="lbl">평균 오름 체류</div></div>
-      <div class="stat-card"><div class="val" id="sDemoted">–</div><div class="lbl">주요기사로 강등</div></div>
+      <div class="stat-card"><div class="val" id="sTopArts">–</div><div class="lbl">Top 등장 기사</div></div>
+      <div class="stat-card"><div class="val" id="sAvgDur">–</div><div class="lbl">평균 Top 체류</div></div>
+      <div class="stat-card"><div class="val" id="sDemoted">–</div><div class="lbl">강등 (오름·주요)</div></div>
       <div class="stat-card"><div class="val" id="sExited">–</div><div class="lbl">바로 퇴장</div></div>
     </div>
 
     <!-- Tabs -->
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('lifecycle', this)">라이프사이클 리포트</button>
-      <button class="tab-btn" onclick="switchTab('oeum-log', this)">오름 교체 이력</button>
+      <button class="tab-btn active" onclick="switchTab('lifecycle', this)">Top 기사 라이프사이클</button>
+      <button class="tab-btn" onclick="switchTab('top-log', this)">Top_1 교체 이력</button>
       <button class="tab-btn" onclick="switchTab('charts', this)">배치 현황 차트</button>
       <button class="tab-btn" onclick="switchTab('articles', this)">전체 기사 목록</button>
     </div>
@@ -260,8 +262,9 @@
     <!-- ① 라이프사이클 리포트 -->
     <div class="tab-panel active" id="tab-lifecycle">
       <div class="card">
-        <div class="card-title"><span class="dot"></span>오름 기사 라이프사이클</div>
+        <div class="card-title"><span class="dot"></span>Top 기사 라이프사이클 (T0016)</div>
         <div class="lc-legend">
+          <span><i style="background:#c62828"></i>Top 기사 T0016</span>
           <span><i style="background:#e53935"></i>오름(메인) M0111</span>
           <span><i style="background:#ff7043"></i>오름(서브) M0113</span>
           <span><i style="background:#fb8c00"></i>주요기사 M0112</span>
@@ -277,10 +280,10 @@
       </div>
     </div>
 
-    <!-- ② 오름 교체 이력 -->
-    <div class="tab-panel" id="tab-oeum-log">
+    <!-- ② Top_1 교체 이력 -->
+    <div class="tab-panel" id="tab-top-log">
       <div class="card">
-        <div class="card-title"><span class="dot"></span>오름(메인) 교체 이력</div>
+        <div class="card-title"><span class="dot"></span>Top_1 교체 이력</div>
         <ul class="change-log" id="changeLog"></ul>
       </div>
     </div>
@@ -288,7 +291,7 @@
     <!-- ③ 배치 현황 차트 -->
     <div class="tab-panel" id="tab-charts">
       <div class="card">
-        <div class="card-title"><span class="dot"></span>오름 체류 시간 Top 15</div>
+        <div class="card-title"><span class="dot"></span>Top 기사 체류 시간 Top 15</div>
         <canvas id="durationChart"></canvas>
       </div>
       <div class="card">
@@ -308,6 +311,7 @@
           </select>
           <select id="sectionFilter" onchange="filterTable()">
             <option value="">전체 섹션</option>
+            <option value="top">Top 기사만</option>
             <option value="oeum">오름만</option>
             <option value="M0112">주요기사만</option>
           </select>
@@ -336,11 +340,13 @@ const COLORS = [
   '#f4511e','#6d4c41','#546e7a','#5e35b1','#039be5'
 ];
 const SEC_COLORS = {
+  'Top 기사': '#c62828',
   '오름(메인)': '#e53935', '오름(서브)': '#ff7043',
   '주요기사': '#fb8c00', '지역뉴스': '#1e88e5',
   '사는이야기': '#8e24aa',
 };
 const PIP_CLASS = {
+  T0016: 'pip-T0016',
   M0111: 'pip-M0111', M0112: 'pip-M0112', M0113: 'pip-M0113',
 };
 
@@ -426,13 +432,13 @@ function renderAll(data) {
 // ── 통계 카드 ─────────────────────────────────────────────────
 function renderStats() {
   const lc = lifecycleData;
-  const totalDur = lc.reduce((s, a) => s + a.oeum_duration, 0);
+  const totalDur = lc.reduce((s, a) => s + a.top_duration, 0);
   const avg = lc.length ? (totalDur / lc.length).toFixed(1) : 0;
-  const demoted = lc.filter(a => a.after_oeum === '주요기사').length;
-  const exited  = lc.filter(a => a.after_oeum === '퇴장').length;
+  const demoted = lc.filter(a => a.outcome === '오름으로' || a.outcome === '주요기사로').length;
+  const exited  = lc.filter(a => a.outcome === '퇴장').length;
 
   document.getElementById('sTimeslots').textContent = allTimeslots.length;
-  document.getElementById('sOeumArts').textContent  = lc.length;
+  document.getElementById('sTopArts').textContent   = lc.length;
   document.getElementById('sAvgDur').textContent    = avg;
   document.getElementById('sDemoted').textContent   = demoted;
   document.getElementById('sExited').textContent    = exited;
@@ -450,8 +456,9 @@ function renderLifecycle() {
   let headerHtml = `<tr>
     <th style="min-width:200px">기사 제목</th>
     <th style="min-width:60px">기자</th>
-    <th style="min-width:90px">오름 진입</th>
-    <th style="min-width:60px">체류</th>
+    <th style="min-width:90px">Top 진입</th>
+    <th style="min-width:50px">최고</th>
+    <th style="min-width:50px">체류</th>
     <th style="min-width:80px">이후 행방</th>`;
 
   for (const t of allTimeslots) {
@@ -461,30 +468,29 @@ function renderLifecycle() {
   headerHtml += '</tr>';
   thead.innerHTML = headerHtml;
 
-  // 시간 인덱스 맵
-  const timeIdx = Object.fromEntries(allTimeslots.map((t, i) => [t, i]));
-
   // 행
   let bodyHtml = '';
   for (const art of lifecycleData) {
-    // 시간대별 상태 맵
     const stageMap = Object.fromEntries(art.stages.map(s => [s.time, s]));
 
-    // 이후 행방 배지
-    const afterClass = art.after_oeum === '퇴장' ? 'badge-exit'
-                     : art.after_oeum === '주요기사' ? 'badge-main'
-                     : art.after_oeum.includes('오름') ? 'badge-oeum'
+    // 이후 행방 배지 색
+    const outcome = art.outcome || '퇴장';
+    const afterClass = outcome === '퇴장'       ? 'badge-exit'
+                     : outcome === '오름으로'    ? 'badge-oeum'
+                     : outcome === '주요기사로'  ? 'badge-main'
                      : 'badge-etc';
 
-    const title = (art.title || art.cntn_cd).substring(0, 32);
-    const firstLabel = slotLabels[art.first_oeum] || art.first_oeum;
+    const title      = (art.title || art.cntn_cd).substring(0, 32);
+    const firstLabel = slotLabels[art.first_top] || art.first_top;
+    const bestPos    = art.best_top_pos ? `Top_${art.best_top_pos}` : '–';
 
     bodyHtml += `<tr>
       <td><a href="${art.url}" target="_blank">${title}</a></td>
       <td style="white-space:nowrap">${art.author || '–'}</td>
       <td style="white-space:nowrap;color:#666">${firstLabel}</td>
-      <td style="text-align:center"><b>${art.oeum_duration}</b>개</td>
-      <td><span class="badge ${afterClass}">${art.after_oeum}</span></td>`;
+      <td style="text-align:center;font-weight:600;color:#c62828">${bestPos}</td>
+      <td style="text-align:center"><b>${art.top_duration}</b>개</td>
+      <td><span class="badge ${afterClass}">${art.after_top}</span></td>`;
 
     for (const t of allTimeslots) {
       const s = stageMap[t];
@@ -492,43 +498,45 @@ function renderLifecycle() {
       let tip = '없음';
       if (s) {
         cls = PIP_CLASS[s.cmpt_cd] || 'pip-other';
-        tip = `${slotLabels[t]} ${s.state} (순위:${s.rank})`;
+        const posStr = s.top_pos ? ` Top_${s.top_pos}` : ` 순위:${s.rank}`;
+        tip = `${slotLabels[t]} ${s.state}${posStr}`;
       }
       bodyHtml += `<td class="slot-cell"><span class="slot-pip ${cls}" title="${tip}"></span></td>`;
     }
     bodyHtml += '</tr>';
   }
 
-  tbody.innerHTML = bodyHtml || `<tr><td colspan="100" class="empty">오름 기사 없음</td></tr>`;
+  tbody.innerHTML = bodyHtml || `<tr><td colspan="100" class="empty">Top 기사 없음</td></tr>`;
 }
 
-// ── 오름(메인) 교체 이력 ──────────────────────────────────────
+// ── Top_1 교체 이력 ───────────────────────────────────────────
 function renderChangeLog() {
   const log = document.getElementById('changeLog');
   log.innerHTML = '';
 
-  // 기사별 오름 등장 횟수 미리 계산
+  // 기사별 Top 등장 횟수 미리 계산
   const stayCount = {};
   for (const art of lifecycleData) {
-    stayCount[art.cntn_cd] = art.oeum_duration;
+    stayCount[art.cntn_cd] = art.top_duration;
   }
 
   let prev = null;
   for (const t of allTimeslots) {
-    const top = allArticles.find(a => a.time === t && a.cmpt_cd === 'M0111');
-    if (top && top.cntn_cd !== prev) {
+    // Top_1 위치의 기사 (T0016 + top_pos === 1)
+    const top1 = allArticles.find(a => a.time === t && a.cmpt_cd === 'T0016' && a.top_pos === 1);
+    if (top1 && top1.cntn_cd !== prev) {
       const li = document.createElement('li');
       li.innerHTML = `
         <span class="time-badge">${slotLabels[t] || t}</span>
         <div class="change-info">
           <div class="change-title">
-            <a href="${top.url}" target="_blank">${top.title || top.cntn_cd}</a>
+            <a href="${top1.url}" target="_blank">${top1.title || top1.cntn_cd}</a>
           </div>
-          <div class="change-author">${top.author || ''}</div>
+          <div class="change-author">${top1.author || ''}</div>
         </div>
-        <span class="stay-pill">${stayCount[top.cntn_cd] || '?'}개 시간대</span>`;
+        <span class="stay-pill">${stayCount[top1.cntn_cd] || '?'}개 시간대</span>`;
       log.appendChild(li);
-      prev = top.cntn_cd;
+      prev = top1.cntn_cd;
     }
   }
   if (!log.children.length) log.innerHTML = '<li class="empty">데이터 없음</li>';
@@ -537,7 +545,7 @@ function renderChangeLog() {
 // ── 체류 시간 차트 ─────────────────────────────────────────────
 function renderDurationChart() {
   const top15 = [...lifecycleData]
-    .sort((a, b) => b.oeum_duration - a.oeum_duration)
+    .sort((a, b) => b.top_duration - a.top_duration)
     .slice(0, 15)
     .reverse();
 
@@ -548,8 +556,8 @@ function renderDurationChart() {
     return a.author ? `${t} (${a.author})` : t;
   });
   const floatData = top15.map(a => {
-    const si = timeIdx[a.first_oeum] ?? 0;
-    const ei = (timeIdx[a.last_oeum] ?? si) + 1;
+    const si = timeIdx[a.first_top] ?? 0;
+    const ei = (timeIdx[a.last_top] ?? si) + 1;
     return [si, ei];
   });
 
@@ -597,7 +605,7 @@ function renderDurationChart() {
 
 // ── 섹션 분포 차트 ─────────────────────────────────────────────
 function renderSectionChart() {
-  const targets = ['오름(메인)', '오름(서브)', '주요기사', '지역뉴스', '사는이야기'];
+  const targets = ['Top 기사', '오름(메인)', '오름(서브)', '주요기사', '지역뉴스', '사는이야기'];
   const secByTime = {};
   for (const t of allTimeslots) {
     secByTime[t] = {};
@@ -607,7 +615,7 @@ function renderSectionChart() {
     if (secByTime[a.time] && targets.includes(a.section)) secByTime[a.time][a.section]++;
   }
 
-  const tColors = ['#e53935','#ff7043','#fb8c00','#1e88e5','#8e24aa'];
+  const tColors = ['#c62828','#e53935','#ff7043','#fb8c00','#1e88e5','#8e24aa'];
   const datasets = targets.map((sec, i) => ({
     label: sec,
     data: allTimeslots.map(t => secByTime[t][sec] || 0),
@@ -649,6 +657,7 @@ function filterTable() {
   filteredArticles = allArticles.filter(a => {
     if (q  && !(a.title||'').toLowerCase().includes(q) && !(a.author||'').toLowerCase().includes(q)) return false;
     if (tF && a.time !== tF) return false;
+    if (sF === 'top'   && !a.is_top) return false;
     if (sF === 'oeum'  && !a.is_oeum) return false;
     if (sF === 'M0112' && a.cmpt_cd !== 'M0112') return false;
     return true;
@@ -670,15 +679,17 @@ function renderTable() {
   }
 
   tbody.innerHTML = page.map(a => {
-    const bc = a.cmpt_cd === 'M0111' ? 'badge-oeum'
+    const bc = a.cmpt_cd === 'T0016' ? 'badge-top'
+             : a.cmpt_cd === 'M0111' ? 'badge-oeum'
              : a.cmpt_cd === 'M0113' ? 'badge-oeum'
              : a.cmpt_cd === 'M0112' ? 'badge-main' : 'badge-etc';
+    const secLabel = a.top_pos ? `${a.section} (Top_${a.top_pos})` : a.section;
     return `<tr>
       <td style="white-space:nowrap">${slotLabels[a.time] || a.time}</td>
       <td style="text-align:center;color:#999">${a.rank}</td>
       <td><a href="${a.url}" target="_blank">${a.title || a.cntn_cd}</a></td>
       <td style="white-space:nowrap">${a.author || '–'}</td>
-      <td><span class="badge ${bc}">${a.section}</span></td>
+      <td><span class="badge ${bc}">${secLabel}</span></td>
     </tr>`;
   }).join('');
 
