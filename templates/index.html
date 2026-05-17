@@ -105,7 +105,7 @@
     }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #e53935; flex-shrink: 0; }
 
-    /* ── Lifecycle table ── */
+    /* ── Lifecycle legend & sort bar ── */
     .lc-legend {
       display: flex; gap: 14px; flex-wrap: wrap;
       margin-bottom: 14px; font-size: 0.78rem; color: #555;
@@ -113,38 +113,101 @@
     .lc-legend span { display: flex; align-items: center; gap: 5px; }
     .lc-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; }
 
-    .lc-table-wrap { overflow-x: auto; }
-    table.lc-table { border-collapse: collapse; font-size: 0.8rem; width: 100%; }
-    table.lc-table thead th {
-      background: #f7f8fa; padding: 7px 10px;
-      font-weight: 700; color: #555; border-bottom: 2px solid #e8e8e8;
-      white-space: nowrap; text-align: left;
+    .lc-sort {
+      display: flex; gap: 8px; align-items: center;
+      margin-bottom: 12px; font-size: 0.82rem; color: #555;
     }
-    table.lc-table thead th.slot-col {
-      padding: 4px 2px; min-width: 0;
-      font-size: 0.6rem; text-align: center;
-      writing-mode: vertical-lr; transform: rotate(180deg);
-      height: 48px; vertical-align: bottom;
+    .lc-sort select {
+      border: 1.5px solid #ddd; border-radius: 7px;
+      padding: 5px 9px; font-size: 0.82rem; outline: none;
     }
-    table.lc-table tbody td {
-      padding: 7px 10px; border-bottom: 1px solid #f2f2f2; vertical-align: middle;
-    }
-    table.lc-table tbody td.slot-cell {
-      padding: 0; width: 14px; min-width: 14px; max-width: 14px;
-    }
-    .slot-pip {
-      display: block; width: 100%; height: 28px;
-      cursor: default;
-    }
-    .pip-T0016 { background: #c62828; }
-    .pip-M0111 { background: #e53935; }
-    .pip-M0113 { background: #ff7043; }
-    .pip-M0112 { background: #fb8c00; }
-    .pip-other { background: #90a4ae; }
-    .pip-none  { background: transparent; }
+    .lc-sort select:focus { border-color: #e53935; }
 
-    table.lc-table td a { color: #1565c0; text-decoration: none; font-weight: 500; }
-    table.lc-table td a:hover { text-decoration: underline; color: #e53935; }
+    /* ── Lifecycle cards ── */
+    .lc-list { display: flex; flex-direction: column; gap: 8px; }
+    .lc-card {
+      background: #fff; border: 1px solid #eee;
+      border-radius: 9px; padding: 10px 14px;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .lc-card:hover { border-color: #e53935; box-shadow: 0 2px 8px rgba(229,57,53,0.08); }
+
+    .lc-card-row {
+      display: flex; align-items: center; gap: 14px;
+      flex-wrap: wrap;
+    }
+    .lc-card-title {
+      flex: 1; min-width: 0;
+      font-size: 0.92rem; font-weight: 600; color: #1a1a1a;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .lc-card-title a { color: inherit; text-decoration: none; }
+    .lc-card-title a:hover { color: #c62828; text-decoration: underline; }
+    .lc-card-author {
+      font-size: 0.78rem; color: #888; font-weight: 500;
+      flex-shrink: 0;
+    }
+    .lc-card-meta {
+      display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+      margin-top: 4px; font-size: 0.82rem;
+    }
+    .meta-pill {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 12px;
+      font-size: 0.78rem; font-weight: 600;
+      background: #f5f5f5; color: #555;
+    }
+    .meta-pill.dur     { background: #ffebee; color: #c62828; }
+    .meta-pill.best-1  { background: #c62828; color: #fff; }
+    .meta-pill.best-2  { background: #e53935; color: #fff; }
+    .meta-pill.best-3  { background: #ff7043; color: #fff; }
+    .meta-pill.best-4  { background: #ffb74d; color: #fff; }
+    .meta-pill.best-5  { background: #ffd54f; color: #555; }
+    .meta-pill.arrow   { background: transparent; color: #aaa; padding: 3px 0; }
+
+    /* ── Timeline ── */
+    .timeline-wrap { position: relative; margin-top: 10px; }
+    .day-labels {
+      position: relative; height: 18px;
+      margin-bottom: 3px;
+    }
+    .day-label {
+      position: absolute; transform: translateX(-50%);
+      font-size: 0.72rem; font-weight: 700; color: #666;
+      white-space: nowrap; padding: 0 4px;
+      background: rgba(255,255,255,0.85);
+    }
+    .timeline-bar {
+      position: relative;
+      display: flex; height: 22px;
+      border-radius: 5px; overflow: hidden;
+      background: #f0f0f0;
+    }
+    .timeline-bar .seg {
+      height: 100%; cursor: default;
+      transition: filter 0.1s;
+    }
+    .timeline-bar .seg:hover { filter: brightness(0.85); }
+    .seg-T0016 { background: #c62828; }
+    .seg-M0111 { background: #e53935; }
+    .seg-M0113 { background: #ff7043; }
+    .seg-M0112 { background: #fb8c00; }
+    .seg-other { background: #90a4ae; }
+    .seg-absent { background: transparent; }
+
+    .day-divider {
+      position: absolute; top: 0; bottom: 0;
+      width: 1px; background: rgba(255,255,255,0.6);
+      pointer-events: none; z-index: 2;
+    }
+    .hour-ticks {
+      position: relative; height: 12px;
+      margin-top: 2px; font-size: 0.62rem; color: #aaa;
+    }
+    .hour-tick {
+      position: absolute; transform: translateX(-50%);
+      white-space: nowrap;
+    }
 
     .badge {
       display: inline-block; padding: 2px 8px; border-radius: 10px;
@@ -269,14 +332,20 @@
           <span><i style="background:#ff7043"></i>오름(서브) M0113</span>
           <span><i style="background:#fb8c00"></i>주요기사 M0112</span>
           <span><i style="background:#90a4ae"></i>기타 섹션</span>
-          <span><i style="background:#f2f2f2;border:1px solid #ddd"></i>없음</span>
+          <span><i style="background:#f0f0f0;border:1px solid #ddd"></i>없음</span>
         </div>
-        <div class="lc-table-wrap">
-          <table class="lc-table" id="lcTable">
-            <thead id="lcHead"></thead>
-            <tbody id="lcBody"></tbody>
-          </table>
+        <div class="lc-sort">
+          정렬:
+          <select id="lcSort" onchange="renderLifecycle()">
+            <option value="duration-desc">체류 시간 (긴 순)</option>
+            <option value="duration-asc">체류 시간 (짧은 순)</option>
+            <option value="pos-asc">최고 위치 (Top_1 우선)</option>
+            <option value="entry-asc">진입 시각 (이른 순)</option>
+            <option value="entry-desc">진입 시각 (늦은 순)</option>
+          </select>
+          <span style="color:#888;font-size:0.78rem">· 막대 길이 = 실제 체류 시간 비례</span>
         </div>
+        <div class="lc-list" id="lcList"></div>
       </div>
     </div>
 
@@ -444,69 +513,126 @@ function renderStats() {
   document.getElementById('sExited').textContent    = exited;
 }
 
-// ── 라이프사이클 테이블 ────────────────────────────────────────
+// ── 라이프사이클 카드 ──────────────────────────────────────────
 function renderLifecycle() {
-  const thead = document.getElementById('lcHead');
-  const tbody = document.getElementById('lcBody');
-
-  // 헤더 - 고정 컬럼 + 시간대 컬럼
-  const slotCount = allTimeslots.length;
-  const cellW = Math.max(6, Math.min(18, Math.floor(900 / slotCount)));
-
-  let headerHtml = `<tr>
-    <th style="min-width:200px">기사 제목</th>
-    <th style="min-width:60px">기자</th>
-    <th style="min-width:90px">Top 진입</th>
-    <th style="min-width:50px">최고</th>
-    <th style="min-width:50px">체류</th>
-    <th style="min-width:80px">이후 행방</th>`;
-
-  for (const t of allTimeslots) {
-    const lbl = slotLabels[t] || t;
-    headerHtml += `<th class="slot-col" title="${t}" style="min-width:${cellW}px;width:${cellW}px">${lbl}</th>`;
+  const list = document.getElementById('lcList');
+  if (!lifecycleData.length) {
+    list.innerHTML = '<div class="empty">Top 기사 없음</div>';
+    return;
   }
-  headerHtml += '</tr>';
-  thead.innerHTML = headerHtml;
 
-  // 행
-  let bodyHtml = '';
-  for (const art of lifecycleData) {
-    const stageMap = Object.fromEntries(art.stages.map(s => [s.time, s]));
-
-    // 이후 행방 배지 색
-    const outcome = art.outcome || '퇴장';
-    const afterClass = outcome === '퇴장'       ? 'badge-exit'
-                     : outcome === '오름으로'    ? 'badge-oeum'
-                     : outcome === '주요기사로'  ? 'badge-main'
-                     : 'badge-etc';
-
-    const title      = (art.title || art.cntn_cd).substring(0, 32);
-    const firstLabel = slotLabels[art.first_top] || art.first_top;
-    const bestPos    = art.best_top_pos ? `Top_${art.best_top_pos}` : '–';
-
-    bodyHtml += `<tr>
-      <td><a href="${art.url}" target="_blank">${title}</a></td>
-      <td style="white-space:nowrap">${art.author || '–'}</td>
-      <td style="white-space:nowrap;color:#666">${firstLabel}</td>
-      <td style="text-align:center;font-weight:600;color:#c62828">${bestPos}</td>
-      <td style="text-align:center"><b>${art.top_duration}</b>개</td>
-      <td><span class="badge ${afterClass}">${art.after_top}</span></td>`;
-
-    for (const t of allTimeslots) {
-      const s = stageMap[t];
-      let cls = 'pip-none';
-      let tip = '없음';
-      if (s) {
-        cls = PIP_CLASS[s.cmpt_cd] || 'pip-other';
-        const posStr = s.top_pos ? ` Top_${s.top_pos}` : ` 순위:${s.rank}`;
-        tip = `${slotLabels[t]} ${s.state}${posStr}`;
-      }
-      bodyHtml += `<td class="slot-cell"><span class="slot-pip ${cls}" title="${tip}"></span></td>`;
+  // 정렬
+  const sortMode = document.getElementById('lcSort')?.value || 'duration-desc';
+  const sorted = [...lifecycleData].sort((a, b) => {
+    switch (sortMode) {
+      case 'duration-asc':  return a.top_duration - b.top_duration;
+      case 'pos-asc':       return (a.best_top_pos || 99) - (b.best_top_pos || 99);
+      case 'entry-asc':     return a.first_top.localeCompare(b.first_top);
+      case 'entry-desc':    return b.first_top.localeCompare(a.first_top);
+      default:              return b.top_duration - a.top_duration;  // duration-desc
     }
-    bodyHtml += '</tr>';
-  }
+  });
 
-  tbody.innerHTML = bodyHtml || `<tr><td colspan="100" class="empty">Top 기사 없음</td></tr>`;
+  // 날짜 라벨 위치 계산 (전 카드 공통)
+  const total = allTimeslots.length;
+  const dayMap = {};
+  allTimeslots.forEach((t, i) => {
+    const day = t.substring(0, 10);
+    if (!dayMap[day]) dayMap[day] = { start: i, end: i + 1 };
+    else dayMap[day].end = i + 1;
+  });
+  const dayEntries = Object.entries(dayMap);
+
+  // 날짜 라벨 HTML (각 카드 상단에 동일하게 표시되므로 함수화)
+  const dayLabelsHtml = `<div class="day-labels">${
+    dayEntries.map(([day, p]) => {
+      const center = ((p.start + p.end) / 2) / total * 100;
+      const label = `${day.substring(5, 7)}/${day.substring(8, 10)}`;
+      return `<span class="day-label" style="left:${center}%">${label}</span>`;
+    }).join('')
+  }</div>`;
+
+  // 날짜 경계 분리선 HTML
+  const dayDividersHtml = dayEntries.slice(1).map(([_, p]) => {
+    const left = p.start / total * 100;
+    return `<div class="day-divider" style="left:${left}%"></div>`;
+  }).join('');
+
+  // 각 카드 렌더
+  list.innerHTML = sorted.map(art => {
+    // 세그먼트 빌드 (연속 같은 상태 병합)
+    const stageMap = Object.fromEntries(art.stages.map(s => [s.time, s]));
+    const segments = [];
+    let cur = null;
+    allTimeslots.forEach((t, i) => {
+      const s = stageMap[t];
+      const state = s ? (s.cmpt_cd || 'other') : 'absent';
+      if (cur && cur.state === state) {
+        cur.end = i + 1;
+        if (s) cur.samples.push({ t, s });
+      } else {
+        if (cur) segments.push(cur);
+        cur = { start: i, end: i + 1, state, samples: s ? [{ t, s }] : [] };
+      }
+    });
+    if (cur) segments.push(cur);
+
+    const segHtml = segments.map(seg => {
+      const w = (seg.end - seg.start) / total * 100;
+      if (seg.state === 'absent') {
+        return `<div class="seg seg-absent" style="width:${w}%"></div>`;
+      }
+      const cls = ({
+        'T0016': 'seg-T0016', 'M0111': 'seg-M0111',
+        'M0113': 'seg-M0113', 'M0112': 'seg-M0112',
+      })[seg.state] || 'seg-other';
+      const first = seg.samples[0]?.s;
+      const last  = seg.samples[seg.samples.length - 1]?.s;
+      const lblFirst = slotLabels[seg.samples[0]?.t] || '';
+      const lblLast  = slotLabels[seg.samples[seg.samples.length - 1]?.t] || '';
+      const posStr = first?.top_pos
+        ? ` Top_${first.top_pos}` + (last?.top_pos !== first?.top_pos ? ` → Top_${last.top_pos}` : '')
+        : '';
+      const hrs = seg.end - seg.start;
+      const tip = `${first?.state || ''}${posStr} · ${hrs}시간 (${lblFirst}~${lblLast})`;
+      return `<div class="seg ${cls}" style="width:${w}%" title="${tip}"></div>`;
+    }).join('');
+
+    // 헤더 정보
+    const outcome = art.outcome || '퇴장';
+    const afterClass = outcome === '퇴장'      ? 'badge-exit'
+                     : outcome === '오름으로'   ? 'badge-oeum'
+                     : outcome === '주요기사로' ? 'badge-main' : 'badge-etc';
+    const bestN  = art.best_top_pos || 0;
+    const bestCls = bestN >= 1 && bestN <= 5 ? `best-${bestN}` : '';
+
+    const firstLabel = slotLabels[art.first_top] || art.first_top;
+    const lastLabel  = slotLabels[art.last_top]  || art.last_top;
+
+    return `
+      <div class="lc-card">
+        <div class="lc-card-row">
+          <div class="lc-card-title">
+            <a href="${art.url}" target="_blank">${art.title || art.cntn_cd}</a>
+          </div>
+          <div class="lc-card-author">${art.author || '–'}</div>
+        </div>
+        <div class="lc-card-meta">
+          ${bestN ? `<span class="meta-pill ${bestCls}">Top_${bestN} 최고</span>` : ''}
+          <span class="meta-pill dur">${art.top_duration}시간 Top 체류</span>
+          <span style="color:#888;font-size:0.78rem">${firstLabel} → ${lastLabel}</span>
+          <span class="meta-pill arrow">→</span>
+          <span class="badge ${afterClass}">${art.after_top}</span>
+        </div>
+        <div class="timeline-wrap">
+          ${dayLabelsHtml}
+          <div class="timeline-bar">
+            ${segHtml}
+            ${dayDividersHtml}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ── Top_1 교체 이력 ───────────────────────────────────────────
