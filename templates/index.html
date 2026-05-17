@@ -78,6 +78,44 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
+    /* ── Insights ── */
+    .insights-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 800px) { .insights-grid { grid-template-columns: 1fr; } }
+    .insight-card {
+      background: #fff; border-radius: 10px;
+      padding: 14px 16px;
+      border-left: 4px solid #e53935;
+      border-top: 1px solid #f0f0f0;
+      border-right: 1px solid #f0f0f0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .insight-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .insight-tag {
+      background: #ffebee; color: #c62828;
+      padding: 2px 8px; border-radius: 4px;
+      font-size: 0.68rem; font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+    .insight-title {
+      font-size: 1rem; font-weight: 800; color: #1a1a1a;
+    }
+    .insight-body {
+      font-size: 0.82rem; color: #555; line-height: 1.6;
+    }
+    .insight-body strong { color: #c62828; font-weight: 700; }
+    .insight-detail {
+      font-size: 0.73rem; color: #999;
+      margin-top: 8px; padding-top: 7px;
+      border-top: 1px dashed #eee;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
     /* ── Stat cards ── */
     .stats-grid {
       display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px;
@@ -314,6 +352,12 @@
       <div class="stat-card"><div class="val" id="sExited">–</div><div class="lbl">바로 퇴장</div></div>
     </div>
 
+    <!-- 분석 기간 주요 특징 -->
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>분석 기간 주요 특징</div>
+      <div class="insights-grid" id="insightsGrid"></div>
+    </div>
+
     <!-- Tabs -->
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('lifecycle', this)">Top 기사 라이프사이클</button>
@@ -487,6 +531,7 @@ function renderAll(data) {
   slotLabels     = data.slot_labels;
 
   renderStats();
+  renderInsights();
   renderLifecycle();
   renderChangeLog();
   renderDurationChart();
@@ -511,6 +556,122 @@ function renderStats() {
   document.getElementById('sAvgDur').textContent    = avg;
   document.getElementById('sDemoted').textContent   = demoted;
   document.getElementById('sExited').textContent    = exited;
+}
+
+// ── 분석 기간 주요 특징 진단 ────────────────────────────────────
+function renderInsights() {
+  const grid = document.getElementById('insightsGrid');
+  const lc = lifecycleData;
+  if (!lc.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1">Top 기사 데이터 없음</div>';
+    return;
+  }
+
+  const days = new Set(allTimeslots.map(t => t.substring(0, 10))).size;
+
+  // ── ① 체류 집중도 ─────────────────────────────────────
+  const sortedByDur = [...lc].sort((a, b) => b.top_duration - a.top_duration);
+  const longest = sortedByDur[0];
+  const totalTopHours = lc.reduce((s, a) => s + a.top_duration, 0);
+  const topN = Math.min(5, lc.length);
+  const topNHours = sortedByDur.slice(0, topN).reduce((s, a) => s + a.top_duration, 0);
+  const topNPct = totalTopHours > 0 ? Math.round((topNHours / totalTopHours) * 100) : 0;
+
+  let concType, concDesc;
+  if (topNPct >= 60) {
+    concType = '고농축'; concDesc = '소수 기사가 Top 시간을 점유';
+  } else if (topNPct <= 35) {
+    concType = '분산형'; concDesc = '여러 기사가 골고루 거쳐감';
+  } else {
+    concType = '균형형'; concDesc = '집중과 분산이 적정 균형';
+  }
+
+  // ── ② Top_1 회전율 ───────────────────────────────────
+  let top1Changes = 0, top1Slots = 0;
+  let prev = null;
+  for (const t of allTimeslots) {
+    const top1 = allArticles.find(a => a.time === t && a.cmpt_cd === 'T0016' && a.top_pos === 1);
+    if (top1) {
+      top1Slots++;
+      if (top1.cntn_cd !== prev) { top1Changes++; prev = top1.cntn_cd; }
+    }
+  }
+  const changesPerDay = (top1Changes / Math.max(1, days)).toFixed(1);
+  const avgTop1Stay = top1Changes > 0 ? (top1Slots / top1Changes).toFixed(1) : '–';
+
+  let rotType, rotDesc;
+  if (parseFloat(changesPerDay) >= 7) {
+    rotType = '빠른 회전'; rotDesc = '잦은 교체로 신선도 유지';
+  } else if (parseFloat(changesPerDay) <= 4) {
+    rotType = '안정형';     rotDesc = '같은 기사가 오래 노출됨';
+  } else {
+    rotType = '균형형';     rotDesc = '적정 교체 주기';
+  }
+
+  // ── ③ Top 이후 행방 패턴 ──────────────────────────────
+  const outcomeCount = { '퇴장': 0, '오름으로': 0, '주요기사로': 0, '기타섹션': 0 };
+  for (const a of lc) outcomeCount[a.outcome || '퇴장']++;
+  const exitedCount  = outcomeCount['퇴장'];
+  const demotedCount = lc.length - exitedCount;
+  const demotedPct   = Math.round((demotedCount / lc.length) * 100);
+
+  let flowType, flowDesc, flowDetail;
+  if (demotedPct >= 60) {
+    flowType = '강등형';
+    flowDesc = `Top 종료 후 <strong>${demotedPct}%</strong>가 오름/주요기사로 강등`;
+  } else if (demotedPct <= 30) {
+    flowType = '교체형';
+    flowDesc = `Top 종료 후 <strong>${100 - demotedPct}%</strong>가 즉시 퇴장`;
+  } else {
+    flowType = '혼합형';
+    flowDesc = `강등 <strong>${demotedPct}%</strong> / 퇴장 <strong>${100 - demotedPct}%</strong>`;
+  }
+  const flowParts = [];
+  if (outcomeCount['오름으로'])   flowParts.push(`오름 ${outcomeCount['오름으로']}`);
+  if (outcomeCount['주요기사로']) flowParts.push(`주요기사 ${outcomeCount['주요기사로']}`);
+  if (exitedCount)                flowParts.push(`퇴장 ${exitedCount}`);
+  flowDetail = flowParts.join(' · ');
+
+  // ── 렌더 ────────────────────────────────────────────
+  const longestTitle = (longest.title || longest.cntn_cd).substring(0, 30);
+
+  grid.innerHTML = `
+    <div class="insight-card">
+      <div class="insight-header">
+        <span class="insight-tag">체류</span>
+        <span class="insight-title">${concType}</span>
+      </div>
+      <div class="insight-body">
+        ${concDesc}.<br>
+        최장 <strong>${longest.top_duration}시간</strong> 노출 · 상위 ${topN}건이 전체 Top 시간의 <strong>${topNPct}%</strong> 점유.
+      </div>
+      <div class="insight-detail" title="${longestTitle}">최장: "${longestTitle}"</div>
+    </div>
+
+    <div class="insight-card">
+      <div class="insight-header">
+        <span class="insight-tag">회전</span>
+        <span class="insight-title">${rotType}</span>
+      </div>
+      <div class="insight-body">
+        ${rotDesc}.<br>
+        Top_1 <strong>${top1Changes}회</strong> 교체 (${days > 1 ? `하루 평균 <strong>${changesPerDay}회</strong>` : `오늘 <strong>${top1Changes}회</strong>`}).
+      </div>
+      <div class="insight-detail">평균 ${avgTop1Stay}시간마다 1위 교체</div>
+    </div>
+
+    <div class="insight-card">
+      <div class="insight-header">
+        <span class="insight-tag">행방</span>
+        <span class="insight-title">${flowType}</span>
+      </div>
+      <div class="insight-body">
+        ${flowDesc}.<br>
+        Top 거친 총 <strong>${lc.length}건</strong>의 기사.
+      </div>
+      <div class="insight-detail">${flowDetail}</div>
+    </div>
+  `;
 }
 
 // ── 라이프사이클 카드 ──────────────────────────────────────────
