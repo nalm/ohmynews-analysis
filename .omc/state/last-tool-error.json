@@ -1,7 +1,0 @@
-{
-  "tool_name": "PowerShell",
-  "tool_input_preview": "{\"command\":\"cd \\\"C:\\\\Users\\\\user\\\\Desktop\\\\ClaudeCode\\\\ohmynews_webapp\\\"; vercel --prod --yes 2>&1\",\"timeout\":120000,\"description\":\"Deploy to Vercel production\"}",
-  "error": "Exit code 1\n\n\n  Set up \"~\\Desktop\\ClaudeCode\\ohmynews_webapp\"\nLoading teams…\nSearching for existing projects…\n  Linked      nalms-projects/ohmynews_webapp\n> Connecting GitHub repository: https://github.com/nalm/ohmynews-analysis\nError: Failed to connect nalm/ohmynews-analysis to project. Make sure there aren't any typos and that you have access to the repository if it's private.\nDeploying nalms-projects/ohmynews_webapp\n{\n  \"status\": \"error\",\n  \"reason\": \"deploy_failed\",\n  \"message\": \"The `functi...",
-  "timestamp": "2026-05-17T03:09:30.020Z",
-  "retry_count": 1
-}
