@@ -686,30 +686,21 @@ function renderLifecycle() {
     }
   });
 
-  // 날짜 라벨 위치 계산 (전 카드 공통)
+  // 시간 라벨 위치 계산 (각 시간대 중앙에 시간 표시)
   const total = allTimeslots.length;
-  const dayMap = {};
-  allTimeslots.forEach((t, i) => {
-    const day = t.substring(0, 10);
-    if (!dayMap[day]) dayMap[day] = { start: i, end: i + 1 };
-    else dayMap[day].end = i + 1;
-  });
-  const dayEntries = Object.entries(dayMap);
-
-  // 날짜 라벨 HTML (각 카드 상단에 동일하게 표시되므로 함수화)
-  const dayLabelsHtml = `<div class="day-labels">${
-    dayEntries.map(([day, p]) => {
-      const center = ((p.start + p.end) / 2) / total * 100;
-      const label = `${day.substring(5, 7)}/${day.substring(8, 10)}`;
-      return `<span class="day-label" style="left:${center}%">${label}</span>`;
+  const hourLabelsHtml = `<div class="day-labels">${
+    allTimeslots.map((t, i) => {
+      const center = ((i + 0.5) / total) * 100;
+      const hour = (t.split(' ')[1] || t).substring(0, 2);  // "07:00" → "07"
+      return `<span class="day-label" style="left:${center}%">${hour}</span>`;
     }).join('')
   }</div>`;
 
-  // 날짜 경계 분리선 HTML
-  const dayDividersHtml = dayEntries.slice(1).map(([_, p]) => {
-    const left = p.start / total * 100;
-    return `<div class="day-divider" style="left:${left}%"></div>`;
-  }).join('');
+  // 정오(12시) 위치에 부드러운 분리선 (시각적 기준점)
+  const noonIdx = allTimeslots.findIndex(t => t.includes(' 12:'));
+  const dayDividersHtml = noonIdx > 0
+    ? `<div class="day-divider" style="left:${noonIdx / total * 100}%"></div>`
+    : '';
 
   // 각 카드 렌더
   list.innerHTML = sorted.map(art => {
@@ -778,7 +769,7 @@ function renderLifecycle() {
           <span class="badge ${afterClass}">${art.after_top}</span>
         </div>
         <div class="timeline-wrap">
-          ${dayLabelsHtml}
+          ${hourLabelsHtml}
           <div class="timeline-bar">
             ${segHtml}
             ${dayDividersHtml}
