@@ -326,10 +326,8 @@
 
   <!-- Search -->
   <div class="search-bar">
-    <label>분석 기간</label>
-    <input type="date" id="dateFrom">
-    <span class="range-sep">~</span>
-    <input type="date" id="dateTo">
+    <label>분석 날짜</label>
+    <input type="date" id="analysisDate">
     <button class="btn-analyze" id="analyzeBtn" onclick="startAnalysis()">분석 시작</button>
     <span id="statusText"></span>
   </div>
@@ -470,13 +468,10 @@ let currentPage = 1;
 const PAGE_SIZE = 50;
 let chartDur = null, chartSec = null;
 
-// 기본 날짜: 오늘 기준 3일
+// 기본 날짜: 오늘
 (function () {
   const today = new Date();
-  const fmt = d => d.toISOString().split('T')[0];
-  const threeDaysAgo = new Date(today); threeDaysAgo.setDate(today.getDate() - 2);
-  document.getElementById('dateTo').value   = fmt(today);
-  document.getElementById('dateFrom').value = fmt(threeDaysAgo);
+  document.getElementById('analysisDate').value = today.toISOString().split('T')[0];
 })();
 
 // ── 탭 전환 ──────────────────────────────────────────────────
@@ -489,25 +484,22 @@ function switchTab(name, btn) {
 
 // ── 분석 시작 ─────────────────────────────────────────────────
 async function startAnalysis() {
-  const from = document.getElementById('dateFrom').value;
-  const to   = document.getElementById('dateTo').value;
-  if (!from || !to) { alert('날짜를 선택해주세요.'); return; }
+  const date = document.getElementById('analysisDate').value;
+  if (!date) { alert('날짜를 선택해주세요.'); return; }
 
   document.getElementById('analyzeBtn').disabled = true;
   document.getElementById('loading').style.display = 'block';
   document.getElementById('results').style.display = 'none';
   document.getElementById('statusText').textContent = '';
 
-  const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
-  document.getElementById('loadingText').textContent =
-    `${days}일치 데이터 수집 중… (약 ${days <= 1 ? '5~10' : days * 3 + '~' + days * 6}초)`;
+  document.getElementById('loadingText').textContent = '데이터 수집 중… (약 5~10초)';
 
   try {
     const t0 = Date.now();
     const resp = await fetch('/api/analyze', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({date_from: from, date_to: to}),
+      body: JSON.stringify({date_from: date, date_to: date}),
     });
     const data = await resp.json();
     if (data.error) { alert('오류: ' + data.error); return; }
