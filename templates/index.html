@@ -251,11 +251,12 @@
       display: inline-block; padding: 2px 8px; border-radius: 10px;
       font-size: 0.71rem; font-weight: 700; white-space: nowrap;
     }
-    .badge-top   { background: #fce4ec; color: #880e4f; }
-    .badge-oeum  { background: #ffebee; color: #c62828; }
-    .badge-main  { background: #fff3e0; color: #e65100; }
-    .badge-exit  { background: #f3e5f5; color: #6a1b9a; }
-    .badge-etc   { background: #f5f5f5; color: #666; }
+    .badge-top     { background: #fce4ec; color: #880e4f; }
+    .badge-oeum    { background: #ffebee; color: #c62828; }
+    .badge-main    { background: #fff3e0; color: #e65100; }
+    .badge-exit    { background: #f3e5f5; color: #6a1b9a; }
+    .badge-ongoing { background: #e3f2fd; color: #1565c0; }
+    .badge-etc     { background: #f5f5f5; color: #666; }
 
     /* ── Change log ── */
     .change-log { list-style: none; }
@@ -600,15 +601,20 @@ function renderInsights() {
     rotType = '균형형';     rotDesc = '적정 교체 주기';
   }
 
-  // ── ③ Top 이후 행방 패턴 ──────────────────────────────
-  const outcomeCount = { '퇴장': 0, '오름으로': 0, '주요기사로': 0, '기타섹션': 0 };
+  // ── ③ Top 이후 행방 패턴 (진행중 제외하고 비율 계산) ─────────
+  const outcomeCount = { '진행중': 0, '퇴장': 0, '오름으로': 0, '주요기사로': 0, '기타섹션': 0 };
   for (const a of lc) outcomeCount[a.outcome || '퇴장']++;
+  const ongoingCount = outcomeCount['진행중'];
   const exitedCount  = outcomeCount['퇴장'];
-  const demotedCount = lc.length - exitedCount;
-  const demotedPct   = Math.round((demotedCount / lc.length) * 100);
+  const judgedTotal  = lc.length - ongoingCount;
+  const demotedCount = judgedTotal - exitedCount;
+  const demotedPct   = judgedTotal > 0 ? Math.round((demotedCount / judgedTotal) * 100) : 0;
 
-  let flowType, flowDesc, flowDetail;
-  if (demotedPct >= 60) {
+  let flowType, flowDesc;
+  if (judgedTotal === 0) {
+    flowType = '판정 대기';
+    flowDesc = `전 기사가 <strong>진행중</strong> (분석 시각 1시간 이내)`;
+  } else if (demotedPct >= 60) {
     flowType = '강등형';
     flowDesc = `Top 종료 후 <strong>${demotedPct}%</strong>가 오름/주요기사로 강등`;
   } else if (demotedPct <= 30) {
@@ -622,7 +628,8 @@ function renderInsights() {
   if (outcomeCount['오름으로'])   flowParts.push(`오름 ${outcomeCount['오름으로']}`);
   if (outcomeCount['주요기사로']) flowParts.push(`주요기사 ${outcomeCount['주요기사로']}`);
   if (exitedCount)                flowParts.push(`퇴장 ${exitedCount}`);
-  flowDetail = flowParts.join(' · ');
+  if (ongoingCount)               flowParts.push(`진행중 ${ongoingCount}`);
+  const flowDetail = flowParts.join(' · ');
 
   // ── 렌더 ────────────────────────────────────────────
   const longestTitle = (longest.title || longest.cntn_cd).substring(0, 30);
@@ -744,7 +751,8 @@ function renderLifecycle() {
 
     // 헤더 정보
     const outcome = art.outcome || '퇴장';
-    const afterClass = outcome === '퇴장'      ? 'badge-exit'
+    const afterClass = outcome === '진행중'    ? 'badge-ongoing'
+                     : outcome === '퇴장'      ? 'badge-exit'
                      : outcome === '오름으로'   ? 'badge-oeum'
                      : outcome === '주요기사로' ? 'badge-main' : 'badge-etc';
     const bestN  = art.best_top_pos || 0;

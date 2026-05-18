@@ -4,8 +4,10 @@
 """
 
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import unescape
+
+KST = timezone(timedelta(hours=9))   # 한국 표준시
 from urllib.request import urlopen, Request
 from urllib.error import HTTPError, URLError
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -166,6 +168,9 @@ def compute_lifecycle(articles, timeslots):
     """T0016(Top 기사)에 한 번이라도 등장한 기사들의 라이프사이클"""
     time_idx = {t: i for i, t in enumerate(timeslots)}
 
+    # 분석 시각 (KST) — 1시간 미만 경과한 last_top은 '진행중'으로 판정
+    analysis_now = datetime.now(KST).replace(tzinfo=None)
+
     meta    = {}
     by_time = defaultdict(dict)
     for a in articles:
@@ -203,14 +208,22 @@ def compute_lifecycle(articles, timeslots):
         first_top = top_stages[0]['time']
         last_top  = top_stages[-1]['time']
 
-        # Top 이후 행방 (Top 마지막 다음 시간대의 섹션)
-        last_idx  = time_idx.get(last_top, -1)
-        after_top = '퇴장'
-        if last_idx >= 0:
-            for t in timeslots[last_idx + 1:]:
-                if t in tm:
-                    after_top = tm[t]['section']
-                    break
+        # 분석 시각 - last_top 이 1시간 미만이면 아직 판정 불가 ('진행중')
+        last_top_dt = datetime.strptime(last_top, '%Y-%m-%d %H:%M')
+        gap_hours = (analysis_now - last_top_dt).total_seconds() / 3600
+        is_ongoing = gap_hours < 1
+
+        # Top 이후 행방
+        if is_ongoing:
+            after_top = '진행중'
+        else:
+            last_idx  = time_idx.get(last_top, -1)
+            after_top = '퇴장'
+            if last_idx >= 0:
+                for t in timeslots[last_idx + 1:]:
+                    if t in tm:
+                        after_top = tm[t]['section']
+                        break
 
         # Top 진입 전 이력
         first_idx = time_idx.get(first_top, 0)
@@ -220,8 +233,10 @@ def compute_lifecycle(articles, timeslots):
         top_positions = [s['top_pos'] for s in top_stages if s['top_pos']]
         best_top_pos  = min(top_positions) if top_positions else None
 
-        # 강등 / 퇴장 분류
-        if after_top == '퇴장':
+        # 분류
+        if after_top == '진행중':
+            outcome = '진행중'
+        elif after_top == '퇴장':
             outcome = '퇴장'
         elif after_top in ('오름(메인)', '오름(서브)'):
             outcome = '오름으로'
